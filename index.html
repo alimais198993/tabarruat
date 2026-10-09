@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1f6b55">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="التبرعات">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style>
+<title>صندوق تبرعات المدرسة</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@500;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap">
+<style>
+/* Layout: one column ledger — balance strip on top, two tabs (students / purchases), forms pinned above each list */
+:root{
+  --bg:#f3f5f2; --surface:#ffffff; --ink:#18322b; --muted:#5d716a; --line:#d9e1dc;
+  --accent:#1f6b55; --accent-ink:#ffffff; --pencil:#e8b23a;
+  --good:#1f7a4d; --bad:#b4412f; --good-bg:#e3f2ea; --bad-bg:#f8e6e1;
+  --display:"Readex Pro","IBM Plex Sans Arabic",system-ui,sans-serif;
+  --body:"IBM Plex Sans Arabic",system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f1a17; --surface:#16241f; --ink:#e5eee9; --muted:#9bb0a8; --line:#293b35;
+  --accent:#4fb08f; --accent-ink:#0b1714; --pencil:#f0c35a;
+  --good:#5cc790; --bad:#ef8a75; --good-bg:#173026; --bad-bg:#3a201b; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1a17; --surface:#16241f; --ink:#e5eee9; --muted:#9bb0a8; --line:#293b35;
+  --accent:#4fb08f; --accent-ink:#0b1714; --pencil:#f0c35a;
+  --good:#5cc790; --bad:#ef8a75; --good-bg:#173026; --bad-bg:#3a201b; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.6;direction:rtl}
+.wrap{max-width:640px;margin:0 auto;padding-inline:16px;padding-block:18px 60px;display:flex;flex-direction:column;gap:16px}
+h1{font-family:var(--display);font-weight:700;font-size:1.45rem;margin:0;text-wrap:balance}
+.sub{color:var(--muted);font-size:.85rem;margin:2px 0 0}
+.num{font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:isolate}
+
+.balance{background:var(--accent);color:var(--accent-ink);border-radius:16px;padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:12px 16px}
+.balance .big{grid-column:1/-1;border-bottom:1px solid color-mix(in srgb,var(--accent-ink) 25%,transparent);padding-bottom:10px}
+.balance .lbl{font-size:.78rem;opacity:.85;letter-spacing:.02em}
+.balance .val{font-family:var(--display);font-weight:700;font-size:1.15rem}
+.balance .big .val{font-size:1.9rem}
+.status{grid-column:1/-1;border-radius:10px;padding:8px 12px;font-weight:600;font-size:.92rem;background:var(--surface);color:var(--ink);display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.status.ok{color:var(--good)} .status.short{color:var(--bad)}
+
+.tabs{display:grid;grid-template-columns:1fr 1fr;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:4px;gap:4px;position:sticky;top:env(safe-area-inset-top,0px);z-index:2}
+.tabs button{border:0;background:transparent;color:var(--muted);font:600 .95rem var(--body);padding:10px;border-radius:9px;cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--accent);color:var(--accent-ink)}
+
+.panel{display:flex;flex-direction:column;gap:12px}
+.form{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.form h2{font-family:var(--display);font-size:1rem;margin:0;font-weight:500}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.row>*{flex:1 1 130px;min-width:0}
+label{display:flex;flex-direction:column;gap:4px;font-size:.8rem;color:var(--muted)}
+input{font:500 1rem var(--body);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%}
+input:focus-visible,button:focus-visible{outline:2px solid var(--pencil);outline-offset:2px}
+.btn{border:0;border-radius:10px;padding:11px 14px;font:600 .95rem var(--body);cursor:pointer;background:var(--accent);color:var(--accent-ink)}
+.btn.ghost{background:transparent;color:var(--accent);border:1px solid var(--line)}
+.btn.small{padding:6px 10px;font-size:.82rem}
+.btn.danger{background:transparent;color:var(--bad);border:1px solid var(--line)}
+.btn.danger.armed{background:var(--bad);color:#fff;border-color:var(--bad)}
+.hint{font-size:.8rem;color:var(--muted);margin:0}
+.err{font-size:.82rem;color:var(--bad);margin:0}
+
+.search{display:flex;gap:8px;align-items:center}
+.list{display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.item{border-bottom:1px solid var(--line)}
+.item:last-child{border-bottom:0}
+.head{display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;width:100%;background:transparent;border:0;color:inherit;font:inherit;text-align:right}
+.head .name{flex:1;min-width:0;font-weight:600;overflow-wrap:anywhere}
+.head .meta{font-size:.78rem;color:var(--muted);font-weight:400}
+.head .amt{font-family:var(--display);font-weight:500}
+.chev{color:var(--muted);transition:transform .2s}
+.item.open .chev{transform:rotate(-90deg)}
+.body{padding:0 14px 14px;display:flex;flex-direction:column;gap:10px}
+.dons{display:flex;flex-direction:column;gap:4px;margin:0;padding:0;list-style:none}
+.dons li{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:.88rem;padding:6px 10px;background:var(--bg);border-radius:8px}
+.dons li .d{color:var(--muted);font-size:.78rem}
+.x{border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:1rem;padding:2px 6px}
+.x.armed{color:var(--bad);font-weight:700;font-size:.78rem}
+
+.pill{font-size:.72rem;border-radius:999px;padding:2px 9px;font-weight:600;white-space:nowrap}
+.pill.bought{background:var(--good-bg);color:var(--good)}
+.pill.todo{background:color-mix(in srgb,var(--pencil) 22%,transparent);color:var(--ink)}
+.pill.cant{background:var(--bad-bg);color:var(--bad)}
+.kv{display:grid;grid-template-columns:1fr auto;gap:4px 12px;font-size:.88rem}
+.kv dt{color:var(--muted)} .kv dd{margin:0}
+
+.empty{padding:28px 18px;text-align:center;color:var(--muted)}
+.empty strong{display:block;color:var(--ink);font-family:var(--display);font-weight:500;margin-bottom:4px}
+.foot{font-size:.75rem;color:var(--muted);text-align:center}
+.toast{position:fixed;bottom:calc(16px + env(safe-area-inset-bottom,0px));inset-inline:16px;max-width:400px;margin:0 auto;background:var(--ink);color:var(--bg);padding:10px 14px;border-radius:10px;font-size:.88rem;text-align:center;z-index:5}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>صندوق تبرعات المدرسة</h1>
+    <p class="sub">تبرعات أولياء الأمور وقائمة المشتريات — بالدينار العراقي</p>
+  </header>
+
+  <section class="balance" aria-label="الملخص">
+    <div class="big"><div class="lbl">مجموع التبرعات</div><div class="val num" id="sTotal">0</div></div>
+    <div><div class="lbl">المصروف (تم شراؤه)</div><div class="val num" id="sSpent">0</div></div>
+    <div><div class="lbl">الرصيد المتوفر الآن</div><div class="val num" id="sCash">0</div></div>
+    <div><div class="lbl">عدد الطلاب</div><div class="val num" id="sStudents">0</div></div>
+    <div><div class="lbl">المطلوب لباقي المشتريات</div><div class="val num" id="sNeed">0</div></div>
+    <div class="status" id="sStatus"><span>لا توجد مشتريات بعد</span></div>
+  </section>
+
+  <nav class="tabs" role="tablist">
+    <button role="tab" id="tabS" aria-selected="true" data-tab="students">الطلاب والتبرعات</button>
+    <button role="tab" id="tabI" aria-selected="false" data-tab="items">المشتريات</button>
+  </nav>
+
+  <section class="panel" id="pStudents">
+    <form class="form" id="fDon" autocomplete="off">
+      <h2>تسجيل تبرع</h2>
+      <div class="row">
+        <label>اسم الطالب<input id="donName" list="studentNames" placeholder="اكتب الاسم أو اختر" required></label>
+        <label>المبلغ (دينار)<input id="donAmt" inputmode="numeric" placeholder="25,000" required></label>
+      </div>
+      <div class="row">
+        <label>التاريخ<input id="donDate" type="date"></label>
+        <label>ملاحظة (اختياري)<input id="donNote" placeholder="مثلاً: ولي الأمر أبو علي"></label>
+      </div>
+      <label>رقم تلفون ولي الأمر (اختياري)<input id="donPhone" type="tel" inputmode="tel" dir="ltr" placeholder="07xx xxx xxxx"></label>
+      <p class="hint">إذا الاسم جديد، ينضاف الطالب تلقائياً.</p>
+      <p class="err" id="donErr" hidden></p>
+      <button class="btn" type="submit">إضافة التبرع</button>
+      <datalist id="studentNames"></datalist>
+    </form>
+
+    <div class="search"><input id="q" type="search" placeholder="بحث بالاسم أو الرقم…" aria-label="بحث عن طالب"></div>
+    <div class="list" id="studentList"></div>
+  </section>
+
+  <section class="panel" id="pItems" hidden>
+    <form class="form" id="fItem" autocomplete="off">
+      <h2>إضافة شيء للشراء</h2>
+      <label>الاسم<input id="itName" placeholder="مثلاً: سبورة ذكية" required></label>
+      <div class="row">
+        <label>الكلفة التخمينية<input id="itEst" inputmode="numeric" placeholder="300,000"></label>
+        <label>سعر الشراء الفعلي<input id="itPrice" inputmode="numeric" placeholder="اتركه فارغ إذا ما معروف"></label>
+      </div>
+      <p class="hint">إذا ما كتبت سعر الشراء، يُحسب المطلوب على الكلفة التخمينية.</p>
+      <p class="err" id="itErr" hidden></p>
+      <button class="btn" type="submit">إضافة</button>
+    </form>
+    <div class="list" id="itemList"></div>
+  </section>
+
+  <section class="form" aria-label="نسخة احتياطية">
+    <h2>نسخة احتياطية</h2>
+    <p class="hint">احفظ ملف فيه كل البيانات، وتگدر ترجعها على نفس التلفون أو تنقلها لتلفون ثاني.</p>
+    <div class="row"><button class="btn ghost" id="bExport" type="button">حفظ نسخة احتياطية</button><button class="btn ghost" id="bImport" type="button">استرجاع من ملف</button></div>
+    <input id="fileIn" type="file" accept=".json,application/json" hidden>
+  </section>
+  <p class="foot" id="syncNote">جارٍ التحميل…</p>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(function(){
+  const DOC = "school/fund";
+  const LS = "school-fund-standalone-v1";
+  let state = {students:[], items:[]};
+  let dbRef = null, saveTimer = null;
+
+  const $ = id => document.getElementById(id);
+  const fmt = n => Math.round(n||0).toLocaleString("en-US");
+  const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+  const today = () => { const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); };
+  function parseNum(s){
+    if(s==null) return NaN;
+    s=String(s).replace(/[٠-٩]/g,d=>"٠١٢٣٤٥٦٧٨٩".indexOf(d)).replace(/[۰-۹]/g,d=>"۰۱۲۳۴۵۶۷۸۹".indexOf(d)).replace(/[,،٬\s]/g,"").replace(/٫/g,".");
+    if(s==="") return NaN; const n=Number(s); return isFinite(n)?n:NaN;
+  }
+  const normPhone = s => String(s||"").replace(/[٠-٩]/g,d=>"٠١٢٣٤٥٦٧٨٩".indexOf(d)).replace(/[۰-۹]/g,d=>"۰۱۲۳۴۵۶۷۸۹".indexOf(d)).replace(/[^\d+]/g,"");
+  const esc = s => String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  function toast(msg){ const t=$("toast"); t.textContent=msg; t.hidden=false; clearTimeout(toast.t); toast.t=setTimeout(()=>t.hidden=true,1800); }
+
+  // ---- storage ----
+  function loadLocal(){ try{ const r=localStorage.getItem(LS); if(r) return JSON.parse(r); }catch(e){} return null; }
+  function saveLocal(){ try{ localStorage.setItem(LS, JSON.stringify(state)); }catch(e){} }
+  function save(){ saveLocal(); }
+
+  // ---- calculations ----
+  const studentTotal = s => s.donations.reduce((a,d)=>a+(+d.amount||0),0);
+  const itemCost = it => (it.price!=null && it.price!=="") ? +it.price : (+it.est||0);
+  function totals(){
+    const total = state.students.reduce((a,s)=>a+studentTotal(s),0);
+    const spent = state.items.filter(i=>i.bought).reduce((a,i)=>a+itemCost(i),0);
+    const pending = state.items.filter(i=>!i.bought);
+    const need = pending.reduce((a,i)=>a+itemCost(i),0);
+    const cash = total - spent;
+    return {total, spent, cash, need, gap: cash-need, pendingCount: pending.length};
+  }
+
+  // ---- render ----
+  let openStudent=null, openItem=null, armed=null;
+  function render(){
+    const t=totals();
+    $("sTotal").textContent=fmt(t.total);
+    $("sSpent").textContent=fmt(t.spent);
+    $("sCash").textContent=fmt(t.cash);
+    $("sStudents").textContent=state.students.length;
+    $("sNeed").textContent=fmt(t.need);
+    const st=$("sStatus");
+    if(!state.items.length){ st.className="status"; st.innerHTML="<span>أضف المشتريات حتى تعرف إذا التبرعات كافية</span>"; }
+    else if(t.pendingCount===0){ st.className="status ok"; st.innerHTML="<span>كل المشتريات تمت</span><span class='num'>الباقي "+fmt(t.cash)+"</span>"; }
+    else if(t.gap>=0){ st.className="status ok"; st.innerHTML="<span>التبرعات كافية ✓</span><span>يزيد <b class='num'>"+fmt(t.gap)+"</b></span>"; }
+    else { st.className="status short"; st.innerHTML="<span>التبرعات غير كافية</span><span>ناقص <b class='num'>"+fmt(-t.gap)+"</b></span>"; }
+
+    $("studentNames").innerHTML=state.students.map(s=>"<option value=\""+esc(s.name)+"\">").join("");
+    renderStudents(); renderItems(t);
+  }
+
+  function renderStudents(){
+    const q=$("q").value.trim();
+    const qp=normPhone(q);
+    const list=state.students.filter(s=>!q||s.name.includes(q)||(qp&&(s.phone||"").includes(qp))).sort((a,b)=>studentTotal(b)-studentTotal(a));
+    const el=$("studentList");
+    if(!state.students.length){ el.innerHTML="<div class='empty'><strong>ما في طلاب بعد</strong>اكتب اسم الطالب ومبلغ التبرع بالأعلى، وينضاف هنا مع مجموع تبرعاته.</div>"; return; }
+    if(!list.length){ el.innerHTML="<div class='empty'>ما لقيت طالب بهذا الاسم</div>"; return; }
+    el.innerHTML=list.map(s=>{
+      const open=openStudent===s.id;
+      const dons=s.donations.slice().sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+      return "<div class='item"+(open?" open":"")+"'>"+
+        "<button class='head' data-act='toggleS' data-id='"+s.id+"'><span class='name'>"+esc(s.name)+"<br><span class='meta'>"+s.donations.length+" تبرع"+(s.phone?" · <span class='num'>"+esc(s.phone)+"</span>":"")+"</span></span><span class='amt num'>"+fmt(studentTotal(s))+"</span><span class='chev'>‹</span></button>"+
+        (open? "<div class='body'>"+
+          "<div class='row'><label>رقم تلفون ولي الأمر<input id='ph_"+s.id+"' type='tel' inputmode='tel' dir='ltr' value='"+esc(s.phone||"")+"' placeholder='07xx xxx xxxx'></label></div>"+
+          "<div class='row'><button class='btn ghost small' data-act='savePh' data-id='"+s.id+"'>حفظ الرقم</button>"+(s.phone?"<button class='btn ghost small' data-act='copyPh' data-id='"+s.id+"'>نسخ الرقم</button>":"")+"</div>"+
+          (dons.length? "<ul class='dons'>"+dons.map(d=>"<li><span><b class='num'>"+fmt(d.amount)+"</b> <span class='d'>"+esc(d.date||"")+(d.note?" · "+esc(d.note):"")+"</span></span><button class='x"+(armed==="d:"+d.id?" armed":"")+"' data-act='delD' data-sid='"+s.id+"' data-id='"+d.id+"' aria-label='حذف التبرع'>"+(armed==="d:"+d.id?"حذف؟":"✕")+"</button></li>").join("")+"</ul>" : "<p class='hint'>ما في تبرعات مسجلة</p>")+
+          "<div class='row'><input id='q_"+s.id+"' inputmode='numeric' placeholder='مبلغ تبرع جديد' aria-label='مبلغ تبرع جديد'><button class='btn small' data-act='quickD' data-id='"+s.id+"'>إضافة</button></div>"+
+          "<div class='row'><button class='btn ghost small' data-act='renS' data-id='"+s.id+"'>تعديل الاسم</button><button class='btn danger small"+(armed==="s:"+s.id?" armed":"")+"' data-act='delS' data-id='"+s.id+"'>"+(armed==="s:"+s.id?"اضغط مرة ثانية للحذف":"حذف الطالب")+"</button></div>"+
+        "</div>":"")+
+      "</div>";
+    }).join("");
+  }
+
+  function renderItems(t){
+    const el=$("itemList");
+    if(!state.items.length){ el.innerHTML="<div class='empty'><strong>القائمة فارغة</strong>أضف الأشياء اللي تريدون تشترونها مع الكلفة التخمينية، وتگدر تكتب سعر الشراء الفعلي بعدين.</div>"; return; }
+    // running availability: walk unbought items in order, see which ones current cash covers
+    let left=t.cash; const cover={};
+    state.items.forEach(i=>{ if(!i.bought){ const c=itemCost(i); cover[i.id]= left>=c; left-=c; } });
+    el.innerHTML=state.items.map(i=>{
+      const open=openItem===i.id;
+      const hasPrice=i.price!=null&&i.price!=="";
+      const pill=i.bought?"<span class='pill bought'>تم الشراء</span>":(cover[i.id]?"<span class='pill todo'>الرصيد يكفي</span>":"<span class='pill cant'>الرصيد ما يكفي</span>");
+      const diff=hasPrice&&i.est? (+i.price - +i.est):null;
+      return "<div class='item"+(open?" open":"")+"'>"+
+        "<button class='head' data-act='toggleI' data-id='"+i.id+"'><span class='name'>"+esc(i.name)+"<br><span class='meta'>"+(hasPrice?"سعر الشراء":"تخميني")+"</span></span>"+pill+"<span class='amt num'>"+fmt(itemCost(i))+"</span><span class='chev'>‹</span></button>"+
+        (open?"<div class='body'>"+
+          "<dl class='kv'><dt>الكلفة التخمينية</dt><dd class='num'>"+(i.est?fmt(i.est):"—")+"</dd><dt>سعر الشراء</dt><dd class='num'>"+(hasPrice?fmt(i.price):"—")+"</dd>"+
+          (diff!=null?"<dt>الفرق عن التخمين</dt><dd class='num' style='color:var("+(diff>0?"--bad":"--good")+")'>"+(diff>0?"+":"")+fmt(diff)+"</dd>":"")+"</dl>"+
+          "<div class='row'><label>الكلفة التخمينية<input id='e_"+i.id+"' inputmode='numeric' value='"+(i.est?fmt(i.est):"")+"'></label><label>سعر الشراء<input id='p_"+i.id+"' inputmode='numeric' value='"+(hasPrice?fmt(i.price):"")+"'></label></div>"+
+          "<div class='row'><button class='btn small' data-act='saveI' data-id='"+i.id+"'>حفظ الأسعار</button><button class='btn ghost small' data-act='boughtI' data-id='"+i.id+"'>"+(i.bought?"إلغاء (لم يُشترَ)":"تم الشراء ✓")+"</button></div>"+
+          "<div class='row'><button class='btn danger small"+(armed==="i:"+i.id?" armed":"")+"' data-act='delI' data-id='"+i.id+"'>"+(armed==="i:"+i.id?"اضغط مرة ثانية للحذف":"حذف")+"</button></div>"+
+        "</div>":"")+
+      "</div>";
+    }).join("");
+  }
+
+  // ---- actions ----
+  function showErr(id,msg){ const e=$(id); e.textContent=msg; e.hidden=!msg; }
+  $("donDate").value=today();
+  $("fDon").addEventListener("submit",e=>{
+    e.preventDefault();
+    const name=$("donName").value.trim().replace(/\s+/g," ");
+    const amt=parseNum($("donAmt").value);
+    if(!name) return showErr("donErr","اكتب اسم الطالب");
+    if(!(amt>0)) return showErr("donErr","اكتب مبلغ صحيح، مثلاً 25000");
+    showErr("donErr","");
+    const phone=normPhone($("donPhone").value);
+    let s=state.students.find(x=>x.name===name);
+    const isNew=!s;
+    if(!s){ s={id:uid(),name,phone:"",donations:[]}; state.students.push(s); }
+    if(phone) s.phone=phone;
+    $("donPhone").value="";
+    s.donations.push({id:uid(),amount:amt,date:$("donDate").value||today(),note:$("donNote").value.trim()});
+    $("donName").value=""; $("donAmt").value=""; $("donNote").value="";
+    save(); render(); toast((isNew?"أُضيف الطالب و":"")+"سُجّل تبرع "+fmt(amt)+" باسم "+name);
+  });
+  $("fItem").addEventListener("submit",e=>{
+    e.preventDefault();
+    const name=$("itName").value.trim();
+    const est=parseNum($("itEst").value), price=parseNum($("itPrice").value);
+    if(!name) return showErr("itErr","اكتب اسم الشيء");
+    if(!(est>0)&&!(price>0)) return showErr("itErr","اكتب الكلفة التخمينية أو سعر الشراء");
+    showErr("itErr","");
+    state.items.push({id:uid(),name,est:est>0?est:0,price:price>0?price:null,bought:false});
+    $("itName").value=""; $("itEst").value=""; $("itPrice").value="";
+    save(); render(); toast("أُضيف "+name);
+  });
+  $("q").addEventListener("input",renderStudents);
+
+  document.addEventListener("click",e=>{
+    const b=e.target.closest("[data-act]"); if(!b) return;
+    const act=b.dataset.act, id=b.dataset.id;
+    const prevArmed=armed; if(!act.startsWith("del")) armed=null;
+    if(act==="toggleS"){ openStudent=openStudent===id?null:id; armed=null; }
+    else if(act==="toggleI"){ openItem=openItem===id?null:id; armed=null; }
+    else if(act==="quickD"){
+      const s=state.students.find(x=>x.id===id); const amt=parseNum($("q_"+id).value);
+      if(!(amt>0)){ toast("اكتب مبلغ صحيح"); return; }
+      s.donations.push({id:uid(),amount:amt,date:today(),note:""}); save(); toast("سُجّل "+fmt(amt));
+    }
+    else if(act==="savePh"){ const s=state.students.find(x=>x.id===id); s.phone=normPhone($("ph_"+id).value); save(); toast(s.phone?"حُفظ الرقم":"حُذف الرقم"); }
+    else if(act==="copyPh"){ const s=state.students.find(x=>x.id===id); const inp=$("ph_"+id);
+      try{ navigator.clipboard.writeText(s.phone).then(()=>toast("نُسخ الرقم"),()=>{ inp.select(); toast("الرقم محدد، انسخه يدوياً"); }); }catch(err){ inp.select(); toast("الرقم محدد، انسخه يدوياً"); }
+      return; }
+    else if(act==="renS"){ const s=state.students.find(x=>x.id===id); const inp=document.createElement("input"); inp.value=s.name; inp.setAttribute("aria-label","الاسم الجديد"); b.replaceWith(inp); inp.focus(); inp.addEventListener("blur",()=>{ const v=inp.value.trim(); if(v){ s.name=v; save(); } render(); }); inp.addEventListener("keydown",k=>{ if(k.key==="Enter") inp.blur(); }); return; }
+    else if(act==="delS"){ const k="s:"+id; if(prevArmed===k){ state.students=state.students.filter(x=>x.id!==id); armed=null; save(); toast("حُذف الطالب"); } else armed=k; }
+    else if(act==="delD"){ const k="d:"+id; if(prevArmed===k){ const s=state.students.find(x=>x.id===b.dataset.sid); s.donations=s.donations.filter(d=>d.id!==id); armed=null; save(); toast("حُذف التبرع"); } else armed=k; }
+    else if(act==="saveI"){ const i=state.items.find(x=>x.id===id); const est=parseNum($("e_"+id).value), pr=parseNum($("p_"+id).value); i.est=est>0?est:0; i.price=pr>0?pr:null; save(); toast("حُفظت الأسعار"); }
+    else if(act==="boughtI"){ const i=state.items.find(x=>x.id===id); i.bought=!i.bought; save(); toast(i.bought?"صار مُشترى":"رجع للقائمة"); }
+    else if(act==="delI"){ const k="i:"+id; if(prevArmed===k){ state.items=state.items.filter(x=>x.id!==id); armed=null; save(); toast("حُذف"); } else armed=k; }
+    render();
+  });
+
+  document.querySelectorAll(".tabs button").forEach(btn=>btn.addEventListener("click",()=>{
+    const isS=btn.dataset.tab==="students";
+    $("tabS").setAttribute("aria-selected",isS); $("tabI").setAttribute("aria-selected",!isS);
+    $("pStudents").hidden=!isS; $("pItems").hidden=isS;
+    try{ localStorage.setItem(LS+"-tab",btn.dataset.tab); }catch(e){}
+  }));
+  try{ if(localStorage.getItem(LS+"-tab")==="items") $("tabI").click(); }catch(e){}
+
+
+  $("bExport").addEventListener("click",()=>{
+    const blob=new Blob([JSON.stringify(state,null,1)],{type:"application/json"});
+    const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+    a.download="تبرعات-المدرسة-"+today()+".json"; document.body.appendChild(a); a.click();
+    setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000); toast("انحفظت النسخة الاحتياطية");
+  });
+  $("bImport").addEventListener("click",()=>$("fileIn").click());
+  $("fileIn").addEventListener("change",async e=>{
+    const f=e.target.files[0]; if(!f) return;
+    try{ const d=JSON.parse(await f.text()); if(!Array.isArray(d.students)||!Array.isArray(d.items)) throw 0;
+      state={students:d.students,items:d.items}; save(); render(); toast("رجعت البيانات من الملف"); }
+    catch(err){ toast("الملف مو صحيح"); }
+    e.target.value="";
+  });
+  if("serviceWorker" in navigator && location.protocol.startsWith("http")) navigator.serviceWorker.register("sw.js").catch(()=>{});
+  // ---- boot ----
+  const local=loadLocal(); if(local&&local.students) state=local;
+  render();
+  $("syncNote").textContent="البيانات محفوظة على هذا التلفون فقط — خذ نسخة احتياطية بين فترة وفترة";
+})();
+</script>
+
+</body>
+</html>
