@@ -87,6 +87,15 @@ input:focus-visible,button:focus-visible{outline:2px solid var(--pencil);outline
 .empty strong{display:block;color:var(--ink);font-family:var(--display);font-weight:500;margin-bottom:4px}
 .foot{font-size:.75rem;color:var(--muted);text-align:center}
 .toast{box-shadow:0 6px 20px rgba(0,0,0,.4);position:fixed;bottom:calc(16px + env(safe-area-inset-bottom,0px));inset-inline:16px;max-width:400px;margin:0 auto;background:var(--ink);color:var(--bg);padding:10px 14px;border-radius:10px;font-size:.88rem;text-align:center;z-index:5}
+.sheet{position:fixed;inset:0;z-index:10;background:rgba(8,3,14,.78);display:flex;align-items:center;justify-content:center;padding:16px;padding-top:calc(16px + env(safe-area-inset-top,0px));padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))}
+.sheet-card{background:#1d0f2c;border:1px solid var(--line);border-radius:18px;padding:18px;width:100%;max-width:440px;display:flex;flex-direction:column;gap:12px;max-height:100%;overflow:auto}
+.sheet-card h2{font-family:var(--display);font-weight:500;font-size:1.1rem;margin:0}
+.qrbox{background:#fff;border-radius:12px;padding:12px;display:flex;justify-content:center}
+.qrbox svg{width:100%;height:auto;max-width:380px;display:block}
+.qrpart{text-align:center;font-weight:600;margin:0}
+.cam{position:relative;border-radius:14px;overflow:hidden;background:#000;aspect-ratio:1/1;max-width:100%}
+.cam video{width:100%;height:100%;object-fit:cover;display:block}
+.aim{position:absolute;inset:14%;border:3px solid var(--pencil);border-radius:14px;box-shadow:0 0 0 999px rgba(0,0,0,.25)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 
@@ -153,11 +162,42 @@ input:focus-visible,button:focus-visible{outline:2px solid var(--pencil);outline
     <h2>نسخة احتياطية</h2>
     <p class="hint">احفظ ملف فيه كل البيانات، وتگدر ترجعها على نفس التلفون أو تنقلها لتلفون ثاني.</p>
     <div class="row"><button class="btn ghost" id="bExport" type="button">حفظ نسخة احتياطية</button><button class="btn ghost" id="bImport" type="button">استرجاع من ملف</button></div>
+    <h2 style="margin-top:6px">مشاركة مع تلفون ثاني</h2>
+    <p class="hint">اعرض الباركود، وخلي الشخص الثاني يمسحه من نفس التطبيق. راح تنتقل له نسخة من كل البيانات وتحل محل اللي عنده.</p>
+    <div class="row"><button class="btn" id="bShareQR" type="button">عرض الباركود</button><button class="btn ghost" id="bScanQR" type="button">مسح باركود</button></div>
     <input id="fileIn" type="file" accept=".json,application/json" hidden>
   </section>
   <p class="foot" id="syncNote">جارٍ التحميل…</p>
 </div>
 <div class="toast" id="toast" hidden></div>
+
+<div class="sheet" id="qrSheet" hidden role="dialog" aria-modal="true" aria-labelledby="qrTitle">
+  <div class="sheet-card">
+    <h2 id="qrTitle">امسح هذا الباركود</h2>
+    <p class="hint" id="qrInfo"></p>
+    <div class="qrbox" id="qrBox"></div>
+    <p class="qrpart" id="qrPart" hidden></p>
+    <div class="row"><button class="btn ghost" id="qrClose" type="button">إغلاق</button></div>
+  </div>
+</div>
+
+<div class="sheet" id="scanSheet" hidden role="dialog" aria-modal="true" aria-labelledby="scanTitle">
+  <div class="sheet-card">
+    <h2 id="scanTitle">وجّه الكاميرا على الباركود</h2>
+    <div class="cam"><video id="cam" playsinline muted></video><div class="aim"></div></div>
+    <p class="hint" id="scanInfo">جارٍ تشغيل الكاميرا…</p>
+    <div class="row"><button class="btn ghost" id="scanClose" type="button">إلغاء</button></div>
+  </div>
+</div>
+
+<div class="sheet" id="impSheet" hidden role="dialog" aria-modal="true" aria-labelledby="impTitle">
+  <div class="sheet-card">
+    <h2 id="impTitle">استلام بيانات</h2>
+    <p id="impInfo"></p>
+    <p class="err" id="impWarn"></p>
+    <div class="row"><button class="btn" id="impYes" type="button">استبدال البيانات</button><button class="btn ghost" id="impNo" type="button">إلغاء</button></div>
+  </div>
+</div>
 
 <script>
 (function(){
@@ -343,10 +383,134 @@ input:focus-visible,button:focus-visible{outline:2px solid var(--pencil);outline
     e.target.value="";
   });
   if("serviceWorker" in navigator && location.protocol.startsWith("http")) navigator.serviceWorker.register("sw.js").catch(()=>{});
+
+  // ---- QR sharing ----
+  const APP_URL = location.origin + location.pathname.replace(/index\.html$/,"");
+  const SINGLE_MAX = 1700, CHUNK = 1100;
+  const libs = {
+    gen: ["https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js","https://unpkg.com/qrcode-generator@1.4.4/qrcode.js"],
+    scan:["https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js","https://unpkg.com/jsqr@1.4.0/dist/jsQR.js"]
+  };
+  function loadScript(urls){
+    return new Promise((res,rej)=>{
+      const tryAt=i=>{ if(i>=urls.length) return rej(new Error("load"));
+        const sc=document.createElement("script"); sc.src=urls[i]; sc.onload=()=>res(); sc.onerror=()=>{sc.remove();tryAt(i+1);}; document.head.appendChild(sc); };
+      tryAt(0);
+    });
+  }
+  const b64u = bytes => { let s=""; for(let i=0;i<bytes.length;i+=0x8000) s+=String.fromCharCode.apply(null,bytes.subarray(i,i+0x8000)); return btoa(s).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); };
+  const unb64u = str => { str=str.replace(/-/g,"+").replace(/_/g,"/"); while(str.length%4) str+="="; const bin=atob(str); const u=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u[i]=bin.charCodeAt(i); return u; };
+  async function pack(obj){
+    const raw=new TextEncoder().encode(JSON.stringify(obj));
+    if(!("CompressionStream" in window)) return "J"+b64u(raw);
+    const out=await new Response(new Blob([raw]).stream().pipeThrough(new CompressionStream("deflate-raw"))).arrayBuffer();
+    return "Z"+b64u(new Uint8Array(out));
+  }
+  async function unpack(str){
+    const kind=str[0], bytes=unb64u(str.slice(1));
+    let txt;
+    if(kind==="Z"){ const out=await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).arrayBuffer(); txt=new TextDecoder().decode(out); }
+    else if(kind==="J") txt=new TextDecoder().decode(bytes);
+    else throw new Error("bad");
+    const d=JSON.parse(txt);
+    if(!d||!Array.isArray(d.students)||!Array.isArray(d.items)) throw new Error("bad");
+    return d;
+  }
+  function svgFor(text){
+    const qr=qrcode(0,"L"); qr.addData(text,"Byte"); qr.make();
+    return qr.createSvgTag({cellSize:4,margin:2,scalable:true});
+  }
+
+  let qrTimer=null;
+  function closeQR(){ clearInterval(qrTimer); qrTimer=null; $("qrSheet").hidden=true; $("qrBox").innerHTML=""; }
+  $("qrClose").addEventListener("click",closeQR);
+  $("bShareQR").addEventListener("click",async()=>{
+    if(!state.students.length && !state.items.length){ toast("ماكو بيانات حتى تنشارك"); return; }
+    try{ await loadScript(libs.gen); }catch(e){ toast("تحتاج إنترنت أول مرة حتى يشتغل الباركود"); return; }
+    const payload=await pack({v:1,at:Date.now(),students:state.students,items:state.items});
+    const nD=state.students.reduce((a,s)=>a+s.donations.length,0);
+    $("qrInfo").textContent=state.students.length+" طالب · "+nD+" تبرع · "+state.items.length+" مشتريات. افتح التطبيق بالتلفون الثاني واضغط «مسح باركود».";
+    let codes;
+    if(payload.length<=SINGLE_MAX){ codes=[APP_URL+"#tb="+payload]; }
+    else{
+      const id=Math.random().toString(36).slice(2,6); const n=Math.ceil(payload.length/CHUNK);
+      codes=[]; for(let i=0;i<n;i++) codes.push("TB2|"+id+"|"+(i+1)+"|"+n+"|"+payload.slice(i*CHUNK,(i+1)*CHUNK));
+    }
+    const svgs=codes.map(svgFor); let idx=0;
+    const show=()=>{ $("qrBox").innerHTML=svgs[idx]; if(svgs.length>1){ $("qrPart").hidden=false; $("qrPart").textContent="جزء "+(idx+1)+" من "+svgs.length+" — يتبدل وحده، خلي الكاميرا عليه"; } else $("qrPart").hidden=true; };
+    show(); $("qrSheet").hidden=false;
+    if(svgs.length>1) qrTimer=setInterval(()=>{ idx=(idx+1)%svgs.length; show(); },1400);
+    try{ if(navigator.wakeLock) navigator.wakeLock.request("screen").catch(()=>{}); }catch(e){}
+  });
+
+  // scanner
+  let stream=null, scanLoop=null, parts=null;
+  function stopScan(){ cancelAnimationFrame(scanLoop); scanLoop=null; if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; } $("scanSheet").hidden=true; }
+  $("scanClose").addEventListener("click",stopScan);
+  $("bScanQR").addEventListener("click",async()=>{
+    parts=null; $("scanInfo").textContent="جارٍ تشغيل الكاميرا…"; $("scanSheet").hidden=false;
+    let detector=null;
+    try{ if("BarcodeDetector" in window){ const f=await BarcodeDetector.getSupportedFormats(); if(f.includes("qr_code")) detector=new BarcodeDetector({formats:["qr_code"]}); } }catch(e){}
+    if(!detector){ try{ await loadScript(libs.scan); }catch(e){ $("scanInfo").textContent="تحتاج إنترنت أول مرة حتى يشتغل الماسح"; return; } }
+    try{ stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"},audio:false}); }
+    catch(e){ $("scanInfo").textContent="ما گدرت أفتح الكاميرا. اسمح للتطبيق باستخدام الكاميرا من إعدادات التلفون وجرب مرة ثانية."; return; }
+    const v=$("cam"); v.srcObject=stream; await v.play().catch(()=>{});
+    $("scanInfo").textContent="قرّب الكاميرا على الباركود";
+    const cv=document.createElement("canvas"), cx=cv.getContext("2d",{willReadFrequently:true});
+    let busy=false;
+    const tick=async()=>{
+      if(!stream) return;
+      if(!busy && v.readyState>=2){
+        busy=true;
+        try{
+          let text=null;
+          if(detector){ const r=await detector.detect(v); if(r.length) text=r[0].rawValue; }
+          else{ const w=Math.min(720,v.videoWidth), h=Math.round(v.videoHeight*w/v.videoWidth); cv.width=w; cv.height=h; cx.drawImage(v,0,0,w,h); const r=jsQR(cx.getImageData(0,0,w,h).data,w,h,{inversionAttempts:"dontInvert"}); if(r) text=r.data; }
+          if(text) await handleCode(text);
+        }catch(e){}
+        busy=false;
+      }
+      if(stream) scanLoop=requestAnimationFrame(tick);
+    };
+    tick();
+  });
+  async function handleCode(text){
+    const i=text.indexOf("#tb=");
+    if(i>=0){ stopScan(); return offerImport(text.slice(i+4)); }
+    if(text.startsWith("TB2|")){
+      const [, id, k, n, chunk]=text.split("|"); const K=+k, N=+n;
+      if(!parts||parts.id!==id) parts={id,n:N,got:{}};
+      if(!parts.got[K]){ parts.got[K]=chunk; try{ navigator.vibrate&&navigator.vibrate(40); }catch(e){} }
+      const have=Object.keys(parts.got).length;
+      $("scanInfo").textContent="انمسح "+have+" من "+N+" — خلي الكاميرا على الباركود";
+      if(have===N){ let all=""; for(let j=1;j<=N;j++) all+=parts.got[j]; stopScan(); return offerImport(all); }
+      return;
+    }
+    $("scanInfo").textContent="هذا الباركود مو من تطبيق التبرعات";
+  }
+  let pending=null;
+  async function offerImport(payload){
+    try{ pending=await unpack(payload); }catch(e){ toast("الباركود ناقص أو تالف، جرب مرة ثانية"); return; }
+    const nD=pending.students.reduce((a,s)=>a+(s.donations||[]).length,0);
+    const when=pending.at? new Date(pending.at).toLocaleString("ar-IQ",{dateStyle:"medium",timeStyle:"short"}):"";
+    $("impInfo").textContent="وصلت "+pending.students.length+" طالب، و"+nD+" تبرع، و"+pending.items.length+" مشتريات"+(when?" (محفوظة "+when+")":"")+".";
+    $("impWarn").textContent= state.students.length||state.items.length ? "البيانات الحالية على هذا التلفون ("+state.students.length+" طالب) راح تنمسح وتنحط بدالها." : "";
+    $("impSheet").hidden=false;
+  }
+  $("impNo").addEventListener("click",()=>{ pending=null; $("impSheet").hidden=true; });
+  $("impYes").addEventListener("click",()=>{
+    if(!pending) return;
+    state={students:pending.students,items:pending.items}; save(); render();
+    try{ localStorage.setItem(LS+"-imported",String(Date.now())); }catch(e){}
+    pending=null; $("impSheet").hidden=true; toast("انتقلت البيانات ✓");
+  });
+  document.addEventListener("keydown",e=>{ if(e.key==="Escape"){ closeQR(); stopScan(); } });
   // ---- boot ----
   const local=loadLocal(); if(local&&local.students) state=local;
   render();
   $("syncNote").textContent="البيانات محفوظة على هذا التلفون فقط — خذ نسخة احتياطية بين فترة وفترة";
+  const checkHash=()=>{ if(location.hash.startsWith("#tb=")){ const pl=location.hash.slice(4); history.replaceState(null,"",location.pathname+location.search); offerImport(pl); } };
+  checkHash(); window.addEventListener("hashchange",checkHash);
 })();
 </script>
 
