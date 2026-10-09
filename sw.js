@@ -1,6 +1,6 @@
 // Network-first: always fetch the latest version when online, fall back to the saved copy when offline.
-const C = "fund-v2";
-const F = ["./", "./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png"];
+const C = "fund-v3";
+const F = ["./", "./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png", "./icon-maskable-512.png", "./bg.jpg"];
 
 self.addEventListener("install", e => {
   self.skipWaiting();
